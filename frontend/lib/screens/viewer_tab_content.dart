@@ -183,8 +183,8 @@ class _ViewerTabContentState extends State<ViewerTabContent> {
               
               Navigator.of(context).pop();
               
-              // Check if the State is still mounted before using its context
-              if (!mounted) return;
+              // Check if the captured State context is still valid before using it
+              if (!scaffoldContext.mounted) return;
               
               ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                 SnackBar(

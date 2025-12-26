@@ -76,7 +76,9 @@ app.*.map.json
 coverage/
 
 # Configuration files (may contain sensitive or environment-specific data)
-assets/configs/*.json
+# Ignore mqtt_config.json as it contains environment-specific broker settings
+assets/configs/mqtt_config.json
+# Note: venues.json is NOT ignored as it's needed for fallback functionality in venue_service.dart
 
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages

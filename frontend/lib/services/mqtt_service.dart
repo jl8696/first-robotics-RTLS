@@ -14,7 +14,7 @@ class MQTTService extends ChangeNotifier {
   bool _isDisposed = false;
   
   // MQTT Configuration - should be configurable via settings
-  String _broker = 'localhost';
+  String _broker = '127.0.0.1';
   int _port = 8083; // Default to 8083 for WebSocket
   String _clientId = 'rtls_flutter_client';
   String _topic = 'Robot Locations';
@@ -77,9 +77,6 @@ class MQTTService extends ChangeNotifier {
     // #endregion
 
     try {
-      // #region agent log
-      print('MQTTService.connect: broker=$_broker, port=$_port, clientId=$_clientId');
-      // #endregion
       final connected = await _impl.connect(_broker, _port, _clientId);
       
       if (connected) {
@@ -173,7 +170,7 @@ class MQTTService extends ChangeNotifier {
   }
 
   void onConnected() {
-    print('MQTT Client connected');
+    // Connection handled by mqtt_service_web_stub.dart
   }
 
   void onDisconnected() {
@@ -190,7 +187,7 @@ class MQTTService extends ChangeNotifier {
   }
 
   void onSubscribed(String topic) {
-    print('Subscribed to topic: $topic');
+    // Subscription handled by mqtt_service_web_stub.dart
   }
 
   @override

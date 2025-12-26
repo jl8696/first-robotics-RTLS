@@ -11,93 +11,69 @@ class MQTTServiceImpl {
   MQTTServiceImpl(this._service);
 
   Future<bool> connect(String broker, int port, String clientId) async {
-    // #region agent log
-    print('MQTT Web connect called: broker=$broker, port=$port, clientId=$clientId');
-    // #endregion
-    
-    // Always use port 8083 for WebSocket connection (map 1883 -> 8083)
+    // Use withPort constructor with URL WITHOUT port, matching working implementation
+    // This avoids the URL parsing bug by not including the port in the URL string
     int wsPort = port == 1883 ? 8083 : port;
-    // Ensure we're using 8083, not any other port
     if (wsPort != 8083) {
-      wsPort = 8083;
+      wsPort = 8083; // Default to 8083 for WebSocket
     }
     
-    // Connect to /mqtt path (as required by MQTTX)
+    // Create WebSocket URL WITHOUT port (port will be specified separately in withPort)
+    final brokerForUrl = broker == 'localhost' ? '127.0.0.1' : broker;
+    final wsUrlWithoutPort = 'ws://$brokerForUrl/mqtt';
+    
     try {
-      // For web, use WebSocket URL format (ws:// for port 8083)
-      // Format: ws://host:port/path
-      // IMPORTANT: The mqtt_client library may parse URLs incorrectly, so we need to ensure
-      // the URL is in the exact format it expects. Some versions expect just hostname:port/path
-      // without the ws:// protocol prefix, or the library adds it internally.
-      final wsUrl = 'ws://$broker:$wsPort/mqtt';
-        
-        // #region agent log
-        print('MQTT Web: Trying to connect to $wsUrl (original port was $port, mapped to $wsPort)');
-        print('MQTT Web: wsUrl string length=${wsUrl.length}, contains 8083=${wsUrl.contains('8083')}, contains 1883=${wsUrl.contains('1883')}');
-        print('MQTT Web: wsUrl exact value: "$wsUrl"');
-        // #endregion
-        
-        // Try alternative: pass hostname:port/path format (without ws://) if library expects it
-        // But first try the full URL format
-        final alternativeUrl = '$broker:$wsPort/mqtt';
-        print('MQTT Web: Alternative URL format: "$alternativeUrl"');
-        
-        // Create client with the full WebSocket URL
-        // Note: MqttBrowserClient constructor signature: MqttBrowserClient(String server, String clientIdentifier)
-        // The library documentation suggests it should accept full WebSocket URLs
-        _client = MqttBrowserClient(wsUrl, clientId);
-        
-        // #region agent log
-        print('MQTT Web: Client created with URL: $wsUrl');
-        // #endregion
-        
-        _client!.logging(on: true); // Enable logging to see what URL it's actually using
-        _client!.keepAlivePeriod = 20;
-        _client!.onConnected = () => _service.onConnected();
-        _client!.onDisconnected = () => _service.onDisconnected();
-        _client!.onSubscribed = (String topic) => _service.onSubscribed(topic);
+      print('MQTT: Connecting to $brokerForUrl:$wsPort...');
+      
+      // Use withPort constructor matching the working implementation
+      _client = MqttBrowserClient.withPort(wsUrlWithoutPort, clientId, wsPort);
+      
+      _client!.keepAlivePeriod = 20;
+      _client!.onConnected = () {
+        print('MQTT: Connected');
+        _service.onConnected();
+      };
+      _client!.onDisconnected = () {
+        print('MQTT: Disconnected');
+        _service.onDisconnected();
+      };
+      _client!.onSubscribed = (String topic) {
+        print('MQTT: Subscribed to topic: $topic');
+        _service.onSubscribed(topic);
+      };
 
-        final connMessage = MqttConnectMessage()
-            .withClientIdentifier(clientId)
-            .startClean()
-            .withWillQos(MqttQos.atLeastOnce);
-        
-        _client!.connectionMessage = connMessage;
-        
-        // Set a timeout for connection
-        await _client!.connect().timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {
-            throw TimeoutException('Connection timeout');
-          },
-        );
+      final connMessage = MqttConnectMessage()
+          .withClientIdentifier(clientId)
+          .startClean();
+      
+      _client!.connectionMessage = connMessage;
+      
+      await _client!.connect().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          throw TimeoutException('Connection timeout');
+        },
+      );
 
       if (_client!.connectionStatus?.state == MqttConnectionState.connected) {
-        // #region agent log
-        print('MQTT Web: Successfully connected to $wsUrl');
-        // #endregion
         return true;
       }
       
-      // Connection failed
       _client!.disconnect();
       _client = null;
+      return false;
     } catch (e) {
-      // #region agent log
-      print('MQTT Web connection error: $e');
-      // #endregion
+      print('MQTT: Connection error: $e');
       if (_client != null) {
         try {
           _client!.disconnect();
-        } catch (_) {}
+        } catch (_) {
+          // Ignore disconnect errors during error recovery
+        }
         _client = null;
       }
+      return false;
     }
-    
-    // #region agent log
-    print('MQTT Web: Connection failed');
-    // #endregion
-    return false;
   }
 
   Future<void> subscribe(String topic, Function(String) onMessage) async {
@@ -113,7 +89,7 @@ class MQTTServiceImpl {
         }
       });
     } catch (e) {
-      print('Error subscribing to topic: $e');
+      print('MQTT: Error subscribing to topic $topic: $e');
     }
   }
 
